@@ -1,0 +1,49 @@
+from flask import Flask, render_template, request, redirect, url_for, session, flash import sqlite3 import smtplib from email.mime.text import MIMEText
+
+app = Flask(name) app.secret_key = 'your_secret_key'  # Change to a random secure key
+
+DB_NAME = 'campbridge.db'
+
+----- DATABASE SETUP -----
+
+def init_db(): conn = sqlite3.connect(DB_NAME) c = conn.cursor() c.execute(''' CREATE TABLE IF NOT EXISTS messages ( id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL, message TEXT NOT NULL, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP ) ''') conn.commit() conn.close()
+
+init_db()
+
+----- EMAIL SENDER -----
+
+def send_email(name, email, message): try: from_email = "your_email@example.com"  # Replace with real email to_email = "godswillluka96@gmail.com" msg = MIMEText(f"Name: {name}\nEmail: {email}\n\n{message}") msg['Subject'] = "New CampBridge Contact Message" msg['From'] = from_email msg['To'] = to_email
+
+# Use your email SMTP configuration here
+    server = smtplib.SMTP('smtp.gmail.com', 587)
+    server.starttls()
+    server.login(from_email, "your_password")
+    server.send_message(msg)
+    server.quit()
+except Exception as e:
+    print("Email sending failed:", e)
+
+----- ROUTES -----
+
+@app.route('/') def index(): return render_template('index.html')
+
+@app.route('/contact', methods=['POST']) def contact(): name = request.form['name'] email = request.form['email'] message = request.form['message']
+
+conn = sqlite3.connect(DB_NAME)
+c = conn.cursor()
+c.execute("INSERT INTO messages (name, email, message) VALUES (?, ?, ?)", (name, email, message))
+conn.commit()
+conn.close()
+
+send_email(name, email, message)
+flash("Your message has been sent successfully!", "success")
+return redirect(url_for('index'))
+
+@app.route('/admin', methods=['GET', 'POST']) def admin_login(): if request.method == 'POST': username = request.form['username'] password = request.form['password'] if username == 'priceless' and password == '09155955413Lk': session['admin'] = True return redirect(url_for('dashboard')) else: flash("Invalid login", "danger") return render_template('admin_login.html')
+
+@app.route('/dashboard') def dashboard(): if not session.get('admin'): return redirect(url_for('admin_login')) conn = sqlite3.connect(DB_NAME) c = conn.cursor() c.execute("SELECT * FROM messages ORDER BY timestamp DESC") messages = c.fetchall() conn.close() return render_template('dashboard.html', messages=messages)
+
+@app.route('/logout') def logout(): session.pop('admin', None) return redirect(url_for('admin_login'))
+
+if name == 'main': app.run(debug=True)
+
